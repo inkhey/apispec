@@ -69,23 +69,24 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance):
         plug['refs'] = {}
 
     for field_name, field in original_schema_instance.fields.items():
-        nested_schema_class = None
+        nested_schema_instance = None
 
         if isinstance(field, marshmallow.fields.Nested):
-            nested_schema_class = get_schema_class(field.schema)
+            nested_schema_instance = get_schema_instance(field.schema)
 
         elif isinstance(field, marshmallow.fields.List) \
                 and isinstance(field.container, marshmallow.fields.Nested):
-            nested_schema_class = get_schema_class(field.container.schema)
+            nested_schema_instance = get_schema_instance(field.container.schema)
 
-        if nested_schema_class and nested_schema_class not in plug['refs']:
+        if nested_schema_instance and nested_schema_instance not in plug['refs']:
             definition_name = spec.schema_name_resolver(
-                nested_schema_class,
+                nested_schema_instance,
             )
+
             if definition_name:
                 spec.definition(
                     definition_name,
-                    schema=nested_schema_class,
+                    schema=nested_schema_instance,
                 )
 
 

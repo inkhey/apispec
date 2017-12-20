@@ -39,7 +39,7 @@ class TestDefinitionHelper:
     @pytest.mark.parametrize('schema', [AnalysisSchema, AnalysisSchema()])
     def test_resolve_schema_dict_auto_reference(self, schema):
         def resolver(schema):
-            return schema.__name__
+            return type(schema).__name__
         spec = APISpec(
             title='Test auto-reference',
             version='2.0',
@@ -73,7 +73,7 @@ class TestDefinitionHelper:
     @pytest.mark.parametrize('schema', [AnalysisWithListSchema, AnalysisWithListSchema()])
     def test_resolve_schema_dict_auto_reference_in_list(self, schema):
         def resolver(schema):
-            return schema.__name__
+            return type(schema).__name__
         spec = APISpec(
             title='Test auto-reference',
             version='2.0',
