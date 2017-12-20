@@ -25,8 +25,8 @@ Requires marshmallow>=2.0.
 """
 from __future__ import absolute_import
 
+import copy
 import marshmallow
-
 from apispec.core import Path
 from apispec.utils import load_operations_from_docstring
 from . import swagger
@@ -82,6 +82,11 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance):
             definition_name = spec.schema_name_resolver(
                 nested_schema_instance,
             )
+
+            # Nested "list" schema are already translated as list of items,
+            # do not make list of list.
+            nested_schema_instance = copy.deepcopy(nested_schema_instance)
+            nested_schema_instance.many = False
 
             if definition_name:
                 spec.definition(
