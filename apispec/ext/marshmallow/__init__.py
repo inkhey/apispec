@@ -26,7 +26,7 @@ Requires marshmallow>=2.0.
 from __future__ import absolute_import
 
 import marshmallow
-
+import copy
 from apispec.core import Path
 from apispec.utils import load_operations_from_docstring
 from . import swagger
@@ -45,7 +45,7 @@ def get_schema_instance(schema):
         return schema
 
 
-def get_schema_class(schema):
+def get_schema_ref(schema):
     """Return schema class for given schema (instance or class)
     :param schema: instance or class of marshmallow.Schema
     :return: schema class of given schema (instance or class)
@@ -53,6 +53,24 @@ def get_schema_class(schema):
     if isinstance(schema, type):
         return schema
     else:
+        parent_schema = type(schema)
+        # Check if new schema needed
+        class_name = ""
+        exclude = getattr(schema, 'exclude', None)
+        only = getattr(schema, 'only', None)
+        if exclude:
+            class_name += 'Without'
+            for elem in exclude:
+                class_name += '_'
+                class_name += elem
+        if only:
+            class_name += 'Only'
+            for elem in only:
+                class_name += '_'
+                class_name += elem
+        if class_name:
+            class_name = parent_schema.__name__ + class_name
+            return class_name
         return type(schema)
 
 
@@ -69,24 +87,31 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance):
         plug['refs'] = {}
 
     for field_name, field in original_schema_instance.fields.items():
-        nested_schema_class = None
+        nested_schema = None
+        nested_schema_ref = None
 
         if isinstance(field, marshmallow.fields.Nested):
-            nested_schema_class = get_schema_class(field.schema)
+            nested_schema = field.schema
+            nested_schema_ref = get_schema_ref(field.schema)
 
         elif isinstance(field, marshmallow.fields.List) \
                 and isinstance(field.container, marshmallow.fields.Nested):
-            nested_schema_class = get_schema_class(field.container.schema)
+            nested_schema = field.schema
+            nested_schema_ref = get_schema_ref(field.container.schema)
 
-        if nested_schema_class and nested_schema_class not in plug['refs']:
-            definition_name = spec.schema_name_resolver(
-                nested_schema_class,
-            )
-            if definition_name:
-                spec.definition(
-                    definition_name,
-                    schema=nested_schema_class,
+        if nested_schema_ref:
+            if nested_schema_ref not in plug['refs']:
+                definition_name = spec.schema_name_resolver(
+                    nested_schema_ref,
                 )
+                if nested_schema.many:
+                    nested_schema = copy.copy(nested_schema)
+                    nested_schema.many = False
+                if definition_name:
+                    spec.definition(
+                        definition_name,
+                        schema=nested_schema,
+                    )
 
 
 def schema_definition_helper(spec, name, schema, **kwargs):
@@ -97,14 +122,14 @@ def schema_definition_helper(spec, name, schema, **kwargs):
     :param type|Schema schema: A marshmallow Schema class or instance.
     """
 
-    schema_cls = get_schema_class(schema)
+    schema_ref = get_schema_ref(schema)
     schema_instance = get_schema_instance(schema)
 
     # Store registered refs, keyed by Schema class
     plug = spec.plugins[NAME]
     if 'refs' not in plug:
         plug['refs'] = {}
-    plug['refs'][schema_cls] = name
+    plug['refs'][schema_ref] = name
 
     json_schema = swagger.schema2jsonschema(schema_instance, spec=spec, name=name)
 
@@ -221,8 +246,12 @@ def resolve_schema_dict(spec, schema, dump=True, use_instances=False):
     else:
         schema_cls = resolve_schema_cls(schema)
 
-    if schema_cls in plug.get('refs', {}):
-        ref_schema = {'$ref': '#/definitions/{0}'.format(plug['refs'][schema_cls])}
+    schema_ref = get_schema_ref(schema)
+    if not schema_ref:
+        schema_ref = schema_cls
+
+    if schema_ref in plug.get('refs', {}):
+        ref_schema = {'$ref': '#/definitions/{0}'.format(plug['refs'][schema_ref])}
         if getattr(schema, 'many', False):
             return {
                 'type': 'array',
