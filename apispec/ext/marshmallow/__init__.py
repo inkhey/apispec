@@ -25,6 +25,7 @@ Requires marshmallow>=2.0.
 """
 from __future__ import absolute_import
 
+import copy
 import marshmallow
 
 from apispec.core import Path
@@ -42,6 +43,9 @@ def get_schema_instance(schema):
     if isinstance(schema, type):
         return schema()
     else:
+        if schema.many:
+            schema = copy.copy(schema)
+            schema.many = False
         return schema
 
 
@@ -53,7 +57,31 @@ def get_schema_class(schema):
     if isinstance(schema, type):
         return schema
     else:
-        return type(schema)
+        parent_schema = type(schema)
+        # Check if new schema needed
+        class_name = ""
+        exclude = getattr(schema, 'exclude', None)
+        only = getattr(schema, 'only', None)
+        if exclude:
+            class_name += 'Without'
+            for elem in exclude:
+                class_name += '_'
+                class_name += elem
+        if only:
+            class_name += 'Only'
+            for elem in only:
+                class_name += '_'
+                class_name += elem
+        if class_name:
+            class_name = parent_schema.__name__ + class_name
+            class NewSchema(parent_schema): pass
+            opts = copy.copy(parent_schema.opts)
+            opts.exclude = exclude
+            opts.only = only
+            NewSchema.__name__ = class_name
+            NewSchema.opts = opts
+            return NewSchema
+        return parent_schema
 
 
 def inspect_schema_for_auto_referencing(spec, original_schema_instance):
@@ -69,23 +97,27 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance):
         plug['refs'] = {}
 
     for field_name, field in original_schema_instance.fields.items():
-        nested_schema_class = None
+        nested_schema_instance = None
 
         if isinstance(field, marshmallow.fields.Nested):
-            nested_schema_class = get_schema_class(field.schema)
+            nested_schema_instance = get_schema_instance(field.schema)
 
         elif isinstance(field, marshmallow.fields.List) \
                 and isinstance(field.container, marshmallow.fields.Nested):
-            nested_schema_class = get_schema_class(field.container.schema)
+            nested_schema_instance = get_schema_instance(field.container.schema)
 
-        if nested_schema_class and nested_schema_class not in plug['refs']:
+        if nested_schema_instance:
+            for elem in plug['refs'].keys():
+                if get_schema_class(nested_schema_instance).__name__ == elem.__name__ :
+                    return
+
             definition_name = spec.schema_name_resolver(
-                nested_schema_class,
+                get_schema_class(nested_schema_instance),
             )
             if definition_name:
                 spec.definition(
                     definition_name,
-                    schema=nested_schema_class,
+                    schema=nested_schema_instance,
                 )
 
 
@@ -96,7 +128,6 @@ def schema_definition_helper(spec, name, schema, **kwargs):
 
     :param type|Schema schema: A marshmallow Schema class or instance.
     """
-
     schema_cls = get_schema_class(schema)
     schema_instance = get_schema_instance(schema)
 
@@ -221,14 +252,15 @@ def resolve_schema_dict(spec, schema, dump=True, use_instances=False):
     else:
         schema_cls = resolve_schema_cls(schema)
 
-    if schema_cls in plug.get('refs', {}):
-        ref_schema = {'$ref': '#/definitions/{0}'.format(plug['refs'][schema_cls])}
-        if getattr(schema, 'many', False):
-            return {
-                'type': 'array',
-                'items': ref_schema,
-            }
-        return ref_schema
+    for elem in plug['refs'].keys():
+        if get_schema_class(schema).__name__ == elem.__name__:
+            ref_schema = {'$ref': '#/definitions/{0}'.format(plug['refs'][elem])}
+            if getattr(schema, 'many', False):
+                return {
+                    'type': 'array',
+                    'items': ref_schema,
+                }
+            return ref_schema
     if not isinstance(schema, marshmallow.Schema):
         schema = schema_cls
     return swagger.schema2jsonschema(schema, spec=spec, dump=dump)
