@@ -85,7 +85,6 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance, value_as
         if nested_schema_class and nested_schema_instance:
             definition_name = None
             if value_as_key:
-
                 if nested_schema_instance.many:
                     nested_schema_instance = copy.copy(nested_schema_instance)
                     nested_schema_instance.many = False
@@ -100,7 +99,6 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance, value_as
                         schema=nested_schema_instance
                     )
             else:
-                # normal mode
                 if nested_schema_class not in plug['refs']:
                     definition_name = spec.schema_name_resolver(
                         nested_schema_class,
@@ -134,7 +132,6 @@ def schema_definition_helper(spec, name, schema, **kwargs):
     # Auto reference schema if spec.schema_name_resolver
     if spec and spec.schema_name_resolver:
 
-        #spec.auto_referencing_strategy # Enum BasedOnDefinitionSchema / BasedOnDefinitionName []
         if spec.auto_referencing_strategy == AutoReferencingStrategy.BasedOnDefinitionSchema:
             inspect_schema_for_auto_referencing(spec,
                                                 schema_instance,
