@@ -80,6 +80,10 @@ class Path(dict):
         self.operations.update(path.operations)
         super(Path, self).update(path.operations)
 
+class AutoReferencingStrategy(object):
+    BasedOnDefinitionSchema = 1
+    BasedOnDefinitionName = 2
+
 
 class APISpec(object):
     """Stores metadata that describes a RESTful API using the OpenAPI specification.
@@ -97,7 +101,7 @@ class APISpec(object):
 
             def schema_name_resolver(schema):
                 return schema.__name__
-
+    :param autoreferencing_strategy: TODO
     :param \*\*dict options: Optional top-level keys
         See https://github.com/OAI/OpenAPI-Specification/blob/master/versions/2.0.md#swagger-object
     """
@@ -109,6 +113,7 @@ class APISpec(object):
         plugins=(),
         info=None,
         schema_name_resolver=None,
+        auto_referencing_strategy=AutoReferencingStrategy.BasedOnDefinitionSchema,
         **options
     ):
         self.info = {
@@ -118,6 +123,7 @@ class APISpec(object):
         self.info.update(info or {})
         self.options = options
         self.schema_name_resolver = schema_name_resolver
+        self.auto_referencing_strategy = auto_referencing_strategy
         # Metadata
         self._definitions = {}
         self._parameters = {}

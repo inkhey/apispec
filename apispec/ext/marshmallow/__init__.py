@@ -27,7 +27,7 @@ from __future__ import absolute_import
 
 import marshmallow
 
-from apispec.core import Path
+from apispec.core import Path, AutoReferencingStrategy
 from apispec.utils import load_operations_from_docstring
 from . import swagger
 
@@ -56,7 +56,7 @@ def get_schema_class(schema):
         return type(schema)
 
 
-def inspect_schema_for_auto_referencing(spec, original_schema_instance):
+def inspect_schema_for_auto_referencing(spec, original_schema_instance, value_as_key):
     """Parse given schema instance and reference eventual nested schemas
     :param spec: apispec.core.APISpec instance
     :param original_schema_instance: schema to parse
@@ -70,23 +70,40 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance):
 
     for field_name, field in original_schema_instance.fields.items():
         nested_schema_class = None
+        nested_schema_instance = None
 
         if isinstance(field, marshmallow.fields.Nested):
             nested_schema_class = get_schema_class(field.schema)
+            nested_schema_instance = get_schema_instance(field.schema)
 
         elif isinstance(field, marshmallow.fields.List) \
                 and isinstance(field.container, marshmallow.fields.Nested):
             nested_schema_class = get_schema_class(field.container.schema)
+            nested_schema_instance = get_schema_instance(field.container.schema)
 
-        if nested_schema_class and nested_schema_class not in plug['refs']:
-            definition_name = spec.schema_name_resolver(
-                nested_schema_class,
-            )
-            if definition_name:
-                spec.definition(
-                    definition_name,
-                    schema=nested_schema_class,
+        if nested_schema_class and nested_schema_instance:
+            definition_name = None
+            if value_as_key:
+                definition_name = spec.schema_name_resolver(
+                    nested_schema_instance
                 )
+                if definition_name and \
+                    definition_name not in plug['refs'].values():
+                    spec.definition(
+                        definition_name,
+                        schema=nested_schema_instance
+                    )
+            else:
+                # normal mode
+                if nested_schema_class not in plug['refs']:
+                    definition_name = spec.schema_name_resolver(
+                        nested_schema_class,
+                    )
+                    if definition_name:
+                        spec.definition(
+                            definition_name,
+                            schema=nested_schema_class,
+                        )
 
 
 def schema_definition_helper(spec, name, schema, **kwargs):
@@ -110,8 +127,16 @@ def schema_definition_helper(spec, name, schema, **kwargs):
 
     # Auto reference schema if spec.schema_name_resolver
     if spec and spec.schema_name_resolver:
-        inspect_schema_for_auto_referencing(spec, schema_instance)
 
+        #spec.auto_referencing_strategy # Enum BasedOnDefinitionSchema / BasedOnDefinitionName []
+        if spec.auto_referencing_strategy == AutoReferencingStrategy.BasedOnDefinitionSchema:
+            inspect_schema_for_auto_referencing(spec,
+                                                schema_instance,
+                                                value_as_key= False)
+        elif spec.auto_referencing_strategy == AutoReferencingStrategy.BasedOnDefinitionName:
+            inspect_schema_for_auto_referencing(spec,
+                                                schema_instance,
+                                                value_as_key=True)
     return json_schema
 
 

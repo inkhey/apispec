@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Contains the main `APISpec` class.
 """
-from .core import APISpec, Path
+from .core import APISpec, Path, AutoReferencingStrategy
 
 __version__ = '0.28.0'
 __author__ = 'Steven Loria, Josh Carp, and contributors'
@@ -11,4 +11,5 @@ __license__ = 'MIT'
 __all__ = [
     'APISpec',
     'Path',
+    'AutoReferencingStrategy',
 ]
