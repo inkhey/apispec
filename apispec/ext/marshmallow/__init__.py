@@ -24,6 +24,7 @@ Requires marshmallow>=2.0.
 
 """
 from __future__ import absolute_import
+import copy
 
 import marshmallow
 
@@ -84,6 +85,11 @@ def inspect_schema_for_auto_referencing(spec, original_schema_instance, value_as
         if nested_schema_class and nested_schema_instance:
             definition_name = None
             if value_as_key:
+
+                if nested_schema_instance.many:
+                    nested_schema_instance = copy.copy(nested_schema_instance)
+                    nested_schema_instance.many = False
+
                 definition_name = spec.schema_name_resolver(
                     nested_schema_instance
                 )
